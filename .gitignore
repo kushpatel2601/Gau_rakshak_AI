@@ -1,0 +1,42 @@
+# --- Python Backend ---
+# Ignore the virtual environment (This is what caused your line-ending warnings)
+backend/venv/
+backend/.venv/
+venv/
+.venv/
+env/
+
+# Ignore compiled Python files
+**/__pycache__/
+*.py[cod]
+*$py.class
+backend/dataset/
+backend/R_dataset/
+
+# --- React Frontend ---
+# Ignore dependencies
+frontend/node_modules/
+node_modules/
+
+# Ignore production builds
+frontend/dist/
+frontend/build/
+
+# --- Environment & Sensitive Files ---
+.env
+*.log
+
+# --- Large AI Models ---
+# Standard GitHub limit is 100MB. If these are larger, they should be ignored 
+# or handled via Git LFS.
+backend/*.h5
+backend/*.keras
+backend/*.json
+!backend/breed_data.json
+!backend/class_indices.json
+
+# --- OS & IDE ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
