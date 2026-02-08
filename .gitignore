@@ -1,37 +1,38 @@
-# --- Python Backend ---
-# Ignore the virtual environment (This is what caused your line-ending warnings)
-backend/venv/
-backend/.venv/
+# --- Virtual Environments (Crucial to block the 944MB DLL) ---
 venv/
 .venv/
 env/
+backend/venv/
+frontend/node_modules/
 
-# Ignore compiled Python files
+# --- Large Binary Files (Exceeds GitHub's 100MB limit) ---
+*.dll
+*.lib
+*.exe
+*.keras
+*.h5
+
+# --- Python & ML Artifacts ---
 **/__pycache__/
 *.py[cod]
 *$py.class
+.env
+backend/dataset/
+backend/R_dataset/
+backend/history.json
+
+# --- React/Web Specific ---
+frontend/dist/
+frontend/build/
+node_modules/
+
+# --- Large/Temporary Data ---
+*.log
 backend/dataset/
 backend/R_dataset/
 
-# --- React Frontend ---
-# Ignore dependencies
-frontend/node_modules/
-node_modules/
-
-# Ignore production builds
-frontend/dist/
-frontend/build/
-
-# --- Environment & Sensitive Files ---
-.env
-*.log
-
-# --- Large AI Models ---
-# Standard GitHub limit is 100MB. If these are larger, they should be ignored 
-# or handled via Git LFS.
-backend/*.h5
-backend/*.keras
-backend/*.json
+# --- Configuration Exceptions ---
+# Keep these small JSONs but ignore the rest
 !backend/breed_data.json
 !backend/class_indices.json
 
