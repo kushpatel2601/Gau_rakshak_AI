@@ -1,7 +1,7 @@
 # 🐮 Gau-Raksha AI: Indigenous Cattle Breed Classifier
 
-(<img width="1919" height="889" alt="image" src="https://github.com/user-attachments/assets/b1afa553-a821-4b0c-87ac-78b725020b32" />
-)
+<img width="1919" height="889" alt="image" src="https://github.com/user-attachments/assets/b1afa553-a821-4b0c-87ac-78b725020b32" />
+
 
 ## 📖 Overview
 
