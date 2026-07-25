@@ -1,7 +1,5 @@
 from fastapi import FastAPI, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-import tensorflow as tf
-from tensorflow.keras.applications.efficientnet import preprocess_input
 import numpy as np
 from PIL import Image
 import io
@@ -12,8 +10,19 @@ from dotenv import load_dotenv
 from urllib.parse import quote_plus
 from pymongo import MongoClient
 
+try:
+    import tensorflow as tf
+    from tensorflow.keras.applications.efficientnet import preprocess_input
+except Exception:
+    tf = None
+
+    def preprocess_input(image_array):
+        return image_array
+
 # --- 1. Load Environment Variables ---
 load_dotenv()
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 app = FastAPI(title="Gau-Raksha AI Backend (EfficientNetB4)")
 
@@ -27,7 +36,7 @@ app.add_middleware(
 )
 
 # --- 3. Database Connection (Silent Failover) ---
-JSON_DB_FILE = "history.json"
+JSON_DB_FILE = os.path.join(BASE_DIR, "history.json")
 mongo_connected = False
 collection = None
 
@@ -97,7 +106,7 @@ def read_from_local_file():
 
 # --- 5. Load AI Model & Data ---
 # ⚠️ UPDATE THIS FILENAME IF NEEDED
-MODEL_FILENAME = "cattlenet_B4_phase1_epoch9.keras"
+MODEL_FILENAME = os.path.join(BASE_DIR, "cattlenet_B4_phase1_epoch9.keras")
 
 print(f"🔄 Loading AI model ({MODEL_FILENAME})...")
 try:
@@ -114,8 +123,9 @@ except Exception as e:
 
 # Load Class Indices
 try:
-    if os.path.exists("class_indices.json"):
-        with open("class_indices.json", "r") as f:
+    class_indices_path = os.path.join(BASE_DIR, "class_indices.json")
+    if os.path.exists(class_indices_path):
+        with open(class_indices_path, "r") as f:
             class_indices = json.load(f)
             # Ensure keys are integers for correct mapping
             class_names = {int(k): v for k, v in class_indices.items()}
@@ -129,8 +139,9 @@ except Exception as e:
 
 # Load Breed Info
 try:
-    if os.path.exists("breed_data.json"):
-        with open("breed_data.json", encoding="utf-8") as f:
+    breed_data_path = os.path.join(BASE_DIR, "breed_data.json")
+    if os.path.exists(breed_data_path):
+        with open(breed_data_path, encoding="utf-8") as f:
             breed_data = json.load(f)
         print("✅ Loaded breed info")
     else:

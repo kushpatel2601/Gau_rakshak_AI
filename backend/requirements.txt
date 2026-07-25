@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+numpy
+pillow
+python-dotenv
+pymongo
+python-multipart
+tensorflow; python_version < "3.14"

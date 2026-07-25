@@ -1,6 +1,7 @@
 # --- Virtual Environments (Crucial to block the 944MB DLL) ---
 venv/
 .venv/
+.venv312/
 env/
 backend/venv/
 frontend/node_modules/
