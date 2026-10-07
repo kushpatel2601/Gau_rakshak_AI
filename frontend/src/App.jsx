@@ -578,6 +578,7 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [history, setHistory] = useState([]); 
+  const [historyError, setHistoryError] = useState(null);
 
   // --- Translation Helper ---
   const t = (key) => TRANSLATIONS[lang][key] || key;
@@ -619,9 +620,14 @@ function App() {
 
   const loadHistory = async () => {
     setLoading(true);
-    const data = await getHistory();
-    if(data) setHistory(data);
-    setLoading(false);
+    setHistoryError(null);
+    try {
+      setHistory(await getHistory());
+    } catch (err) {
+      setHistoryError(err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const resetApp = () => {
@@ -940,6 +946,10 @@ function App() {
                   <div className="text-center py-20 text-gray-500 animate-pulse">
                       <RefreshCw className="animate-spin inline-block mb-4 w-8 h-8" />
                       <p className="text-lg">{t('loading_db')}</p>
+                  </div>
+              ) : historyError ? (
+                  <div role="alert" className="p-4 bg-red-900/20 border border-red-900/50 rounded-xl flex items-center gap-3 text-red-200">
+                      <AlertCircle size={20} /> {historyError}
                   </div>
               ) : history.length === 0 ? (
                   <div className="text-center py-20 border-2 border-dashed border-[#262730] rounded-2xl bg-[#0E1117]/50">

@@ -1,0 +1,49 @@
+# Provision only after account access, model distribution permission and Atlas are ready.
+# No paid instances, disks or databases are included.
+services:
+  - type: web
+    name: gau-raksha-api
+    runtime: python
+    plan: free
+    rootDir: backend
+    autoDeployTrigger: "off"
+    buildCommand: pip install -r requirements-lite.txt && python model_artifact.py
+    startCommand: uvicorn main:app --host 0.0.0.0 --port "$PORT" --workers 1 --limit-concurrency 4
+    healthCheckPath: /health/ready
+    envVars:
+      - key: INFERENCE_RUNTIME
+        value: litert
+      - key: REQUIRE_MONGODB
+        value: "true"
+      - key: MODEL_PATH
+        value: cattlenet_B4_float32.tflite
+      - key: MODEL_SHA256
+        value: 21028dd135e2c14a320ad9abb20903a0a0592faf54dbb3a07f4cdbd76a06635f
+      - key: MODEL_URL
+        value: https://github.com/kushpatel2601/Gau_rakshak_AI/releases/download/model-float32-v1/cattlenet_B4_float32.tflite
+      - key: MONGO_USERNAME
+        sync: false
+      - key: MONGO_PASSWORD
+        sync: false
+      - key: MONGO_CLUSTER
+        sync: false
+      - key: DB_NAME
+        value: gaurakshak_db
+      - key: CORS_ORIGINS
+        sync: false
+  - type: web
+    name: gau-raksha-web
+    runtime: static
+    rootDir: frontend
+    autoDeployTrigger: "off"
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: NODE_VERSION
+        value: 24.18.0
+      - key: VITE_API_URL
+        sync: false
