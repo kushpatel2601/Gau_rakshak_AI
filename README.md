@@ -179,7 +179,8 @@ All 50 repository breed images retained the same top-1 class and 30% threshold
 decision. All probability vectors passed `rtol=1e-4, atol=1e-5`; maximum absolute
 score difference was `3.43e-5`. Floating-point execution order does change tiny
 numerical details: three displayed confidence values changed by **0.01 percentage
-point**. These images establish conversion parity, not new accuracy claims or
+point**: `Kokan Kapila.webp` 59.38% to 59.39%, `Nimari.webp` 54.93% to 54.94%,
+and `Ponwar.webp` 90.82% to 90.81%. These images establish conversion parity, not new accuracy claims or
 a guarantee for every possible input.
 
 The LiteRT result supports attempting a **512 MiB free API instance**, but is
