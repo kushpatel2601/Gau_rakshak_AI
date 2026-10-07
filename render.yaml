@@ -20,7 +20,7 @@ services:
       - key: MODEL_SHA256
         value: 21028dd135e2c14a320ad9abb20903a0a0592faf54dbb3a07f4cdbd76a06635f
       - key: MODEL_URL
-        sync: false
+        value: https://github.com/kushpatel2601/Gau_rakshak_AI/releases/download/model-float32-v1/cattlenet_B4_float32.tflite
       - key: MONGO_USERNAME
         sync: false
       - key: MONGO_PASSWORD

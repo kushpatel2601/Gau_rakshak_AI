@@ -89,12 +89,36 @@ an ephemeral filesystem. `MONGO_CLUSTER` is the Atlas hostname, not a connection
 URI. The database user needs access to `DB_NAME` and Atlas network rules must
 allow the backend's outbound addresses.
 
-### Deployment preparation (free hosting only)
+### Live deployment (free hosting only)
 
-No live deployment or free-backend capacity guarantee is implied by this setup.
-A complete site needs a static frontend, a model-serving backend and a durable
-database, such as an Atlas free cluster. Do not select paid instances or
-card-backed trials. Free backend instances may sleep and have long cold starts.
+Verified on 2026-10-07:
+
+* **Website:** https://gau-raksha-web.onrender.com
+* **API readiness:** https://gau-raksha-api.onrender.com/health/ready
+* **Model release:** https://github.com/kushpatel2601/Gau_rakshak_AI/releases/tag/model-float32-v1
+
+The website uses a Render Static Site, a **free 512 MiB** LiteRT API in Singapore,
+and a **MongoDB Atlas M0 free cluster** in AWS Singapore. No paid instances,
+disks, paid database backup or card-backed trials were created. Free service
+quotas still apply; the API **may sleep and cold-start**. This is not an
+always-on or unlimited-capacity service. Keep `REQUIRE_MONGODB=true`.
+
+Real browser upload, Gir prediction (78.7%), PDF download and history were
+verified. API equivalence checks passed for five images plus three 16-megapixel
+uploads. All eight existing history records survived an actual API restart onto
+a replacement instance; readiness again reported `Online`, model loaded and
+durable history available. Invalid uploads and cross-origin restrictions were
+also checked. Render's 60-second memory samples reached **235.91 MiB** on the
+active instance; these are sampled observations, **not instantaneous peak RSS
+or a load-capacity guarantee**.
+
+The deployed API is `srv-db34pa7lk1mc739ee8ag`; the static site is
+`srv-db34pm142hec738j1j50`. Atlas permits the API's documented shared outbound
+CIDRs `74.220.52.0/24` and `74.220.60.0/24`, not all internet addresses. Recheck
+Render's outbound addresses before changing regions. Database secrets remain
+backend-only; the frontend receives only the public API URL.
+
+### Reproducing the deployment
 
 **Render (both services):** `render.yaml` defines a Static Site and an explicitly
 `free` Python API, with no paid disks or databases. Automatic deploys are off.
@@ -137,10 +161,11 @@ RGB 380x380 input, the original 50-class order, and the existing 30% confidence
 threshold. Uploads are limited to 8 MiB and decoded images to 16 megapixels.
 History remains shared/public, not user-specific; this change adds no accounts.
 
-**Model distribution:** get the owner's explicit permission before publishing
-either the original or a converted model. This repository is public; putting
-an artifact in a public release makes it public too. Keep model binaries out
-of Git. For an authorized HTTPS download, set `MODEL_URL`, `MODEL_PATH` and
+**Model distribution:** the owner authorized the public optimized float32
+artifact in the versioned release above. The original `.keras` remains local,
+unpublished and ignored. Get explicit permission for any additional model
+publication. This repository and its release assets are public; keep model
+binaries out of normal Git commits. For the authorized HTTPS download, set `MODEL_URL`, `MODEL_PATH` and
 the exact artifact's `MODEL_SHA256` as backend-only environment variables.
 Then run `python model_artifact.py` during the backend build. It streams into
 a temporary file, verifies SHA-256, and fails the build on missing, oversized,
@@ -183,13 +208,12 @@ point**: `Kokan Kapila.webp` 59.38% to 59.39%, `Nimari.webp` 54.93% to 54.94%,
 and `Ponwar.webp` 90.82% to 90.81%. These images establish conversion parity, not new accuracy claims or
 a guarantee for every possible input.
 
-The LiteRT result supports attempting a **512 MiB free API instance**, but is
-**not proof of Linux/cgroup fit**. A Python 3.12 manylinux x86-64 wheel exists;
-Linux startup/inference, concurrent traffic, MongoDB overhead, cold starts,
-platform quotas and persistent Atlas history still require live verification.
-Native TensorFlow already exceeds 512 MiB locally and is not the proposed free
-deployment runtime. No hosted service or durable database has been verified by
-these local checks.
+Those local measurements alone were **not proof of Linux/cgroup fit**. The
+live checks above subsequently verified Python 3.12/LiteRT startup, real
+predictions with MongoDB, and persistent history on the 512 MiB Linux service.
+Concurrent traffic, cold starts and quotas remain operational limits, not
+performance guarantees. Native TensorFlow already exceeds 512 MiB locally and
+is not the free deployment runtime.
 
 Do not enable a production URL until real `/predict` calls succeed and the
 result appears in `/history` **after a service restart** with MongoDB still
