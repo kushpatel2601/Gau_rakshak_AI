@@ -1,4 +1,19 @@
-const API_URL = "http://localhost:8000";
+const API_URL = (import.meta.env?.VITE_API_URL || "http://localhost:8000").replace(/\/+$/, "");
+
+async function readResponse(res) {
+  const data = await res.json().catch(() => {
+    throw new Error(`The server returned an invalid response (HTTP ${res.status}).`);
+  });
+  if (data === null || typeof data !== "object") {
+    throw new Error(`The server returned an invalid response (HTTP ${res.status}).`);
+  }
+  if (!res.ok || data.error) {
+    throw new Error(
+      typeof data.detail === "string" ? data.detail : data.error || `Request failed (HTTP ${res.status}).`
+    );
+  }
+  return data;
+}
 
 export async function predictCow(file) {
   const formData = new FormData();
@@ -9,15 +24,14 @@ export async function predictCow(file) {
     body: formData,
   });
 
-  return await res.json();
+  return readResponse(res);
 }
 
 export async function getHistory() {
-  try {
-    const res = await fetch(`${API_URL}/history`);
-    return await res.json();
-  } catch (error) {
-    console.error("Failed to fetch history:", error);
-    return [];
+  const res = await fetch(`${API_URL}/history`);
+  const data = await readResponse(res);
+  if (!Array.isArray(data)) {
+    throw new Error("The server returned invalid history data.");
   }
+  return data;
 }

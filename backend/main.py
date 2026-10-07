@@ -1,166 +1,242 @@
-from fastapi import FastAPI, File, UploadFile
-from fastapi.middleware.cors import CORSMiddleware
-import numpy as np
-from PIL import Image
+from contextlib import asynccontextmanager
+from datetime import datetime
 import io
 import json
+import logging
 import os
-from datetime import datetime
+from pathlib import Path
+import tempfile
+from threading import Lock, Semaphore
+from urllib.parse import quote_plus, urlsplit
+
 from dotenv import load_dotenv
-from urllib.parse import quote_plus
+from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from fastapi.concurrency import run_in_threadpool
+import numpy as np
+from PIL import Image, UnidentifiedImageError
 from pymongo import MongoClient
+from pymongo.errors import PyMongoError
+from model_artifact import verify_model
 
-try:
-    import tensorflow as tf
-    from tensorflow.keras.applications.efficientnet import preprocess_input
-except Exception:
-    tf = None
+BASE_DIR = Path(__file__).resolve().parent
+load_dotenv(BASE_DIR / ".env")
+logger = logging.getLogger("uvicorn.error")
 
-    def preprocess_input(image_array):
-        return image_array
-
-# --- 1. Load Environment Variables ---
-load_dotenv()
-
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
-app = FastAPI(title="Gau-Raksha AI Backend (EfficientNetB4)")
-
-# --- 2. CORS Setup ---
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# --- 3. Database Connection (Silent Failover) ---
-JSON_DB_FILE = os.path.join(BASE_DIR, "history.json")
-mongo_connected = False
+require_mongodb = os.getenv("REQUIRE_MONGODB", "false").lower()
+if require_mongodb not in {"true", "false"}:
+    raise ValueError("REQUIRE_MONGODB must be true or false.")
+REQUIRE_MONGODB = require_mongodb == "true"
+INFERENCE_RUNTIME = os.getenv("INFERENCE_RUNTIME", "tensorflow")
+if INFERENCE_RUNTIME not in {"tensorflow", "litert"}:
+    raise ValueError("INFERENCE_RUNTIME must be tensorflow or litert.")
+JSON_DB_FILE = BASE_DIR / "history.json"
+MODEL_FILENAME = BASE_DIR / os.getenv("MODEL_PATH", "cattlenet_B4_phase1_epoch9.keras")
+MAX_UPLOAD_BYTES = 8 * 1024 * 1024
+MAX_REQUEST_BYTES = MAX_UPLOAD_BYTES + 64 * 1024
+MAX_IMAGE_PIXELS = 16_000_000
+inference_slot = Semaphore(1)
+history_lock = Lock()
+model = None
+class_names = {}
+breed_data = {}
+client = None
 collection = None
+mongo_connected = False
 
-print("⏳ Initializing Database...")
-try:
+
+def cors_origins():
+    values = os.getenv(
+        "CORS_ORIGINS",
+        "http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173",
+    )
+    origins = []
+    for value in values.split(","):
+        value = value.strip().rstrip("/")
+        parsed = urlsplit(value)
+        if (parsed.scheme not in {"http", "https"} or not parsed.netloc
+                or parsed.username or parsed.password or parsed.path
+                or parsed.query or parsed.fragment):
+            raise ValueError("CORS_ORIGINS must contain explicit comma-separated origins.")
+        origins.append(value)
+    return origins
+
+
+def initialize_database():
+    global client, collection, mongo_connected
     username = os.getenv("MONGO_USERNAME")
     password = os.getenv("MONGO_PASSWORD")
     cluster = os.getenv("MONGO_CLUSTER")
-    db_name = os.getenv("DB_NAME", "gaurakshak_db")
-
-    if not username or not password or not cluster:
-        # Just a warning, not an error that stops the app
-        print("⚠️ Credentials missing in .env, defaulting to offline mode.")
-    else:
-        escaped_username = quote_plus(username)
-        escaped_password = quote_plus(password)
-        mongo_uri = f"mongodb+srv://{escaped_username}:{escaped_password}@{cluster}/?retryWrites=true&w=majority"
-
-        # Short timeout for connection check
-        client = MongoClient(mongo_uri, serverSelectionTimeoutMS=2000)
-        client.admin.command('ping')
-
-        db = client[db_name]
-        collection = db["predictions"]
+    if not all((username, password, cluster)):
+        logger.warning("MongoDB credentials missing; %s.",
+                       "readiness will fail" if REQUIRE_MONGODB else "using local JSON history")
+        return
+    if any(char in cluster for char in "/:@?#"):
+        logger.error("MONGO_CLUSTER must be a hostname, not a URI.")
+        return
+    uri = f"mongodb+srv://{quote_plus(username)}:{quote_plus(password)}@{cluster}/?retryWrites=true&w=majority"
+    try:
+        client = MongoClient(uri, serverSelectionTimeoutMS=2000,
+                             connectTimeoutMS=2000, socketTimeoutMS=5000)
+        client.admin.command("ping")
+        collection = client[os.getenv("DB_NAME", "gaurakshak_db")]["predictions"]
         mongo_connected = True
-        print(f"✅ ONLINE: Connected to MongoDB Cloud ({db_name})")
-
-except Exception as e:
-    print(
-        f"⚠️ OFFLINE MODE: Could not reach Cloud DB. Using '{JSON_DB_FILE}'.")
-    mongo_connected = False
-
-if not mongo_connected and not os.path.exists(JSON_DB_FILE):
-    with open(JSON_DB_FILE, "w") as f:
-        json.dump([], f)
-
-# --- 4. Helper Functions ---
+        logger.info("Connected to MongoDB.")
+    except (PyMongoError, ValueError) as exc:
+        logger.error("MongoDB initialization failed (%s); %s.", type(exc).__name__,
+                     "readiness will fail" if REQUIRE_MONGODB else "using local JSON history")
+        if client is not None:
+            client.close()
+        client = None
 
 
-def save_to_local_file(record):
+def initialize_model():
+    global model, class_names, breed_data
     try:
-        data = []
-        if os.path.exists(JSON_DB_FILE):
-            with open(JSON_DB_FILE, "r") as f:
-                try:
-                    data = json.load(f)
-                except:
-                    data = []
-        data.insert(0, record)
-        data = data[:100]  # Keep last 100 records
-        with open(JSON_DB_FILE, "w") as f:
-            json.dump(data, f, indent=4)
-        print("✅ Saved to local storage")
-    except Exception as e:
-        print(f"❌ Save failed: {e}")
+        with (BASE_DIR / "class_indices.json").open(encoding="utf-8") as handle:
+            class_names = {int(key): value for key, value in json.load(handle).items()}
+        with (BASE_DIR / "breed_data.json").open(encoding="utf-8") as handle:
+            breed_data = json.load(handle)
+        if set(class_names) != set(range(50)):
+            raise ValueError("class_indices.json must preserve all 50 output indices.")
+        if os.getenv("MODEL_SHA256"):
+            verify_model(MODEL_FILENAME, os.environ["MODEL_SHA256"])
+        if INFERENCE_RUNTIME == "litert":
+            from ai_edge_litert.interpreter import Interpreter
 
+            model = Interpreter(model_path=str(MODEL_FILENAME), num_threads=1)
+            inputs, outputs = model.get_input_details(), model.get_output_details()
+            if (len(inputs) != 1 or len(outputs) != 1
+                    or tuple(inputs[0]["shape"]) != (1, 380, 380, 3)
+                    or tuple(outputs[0]["shape"]) != (1, 50)
+                    or inputs[0]["dtype"] != np.float32 or outputs[0]["dtype"] != np.float32):
+                raise ValueError("Expected float32 RGB 380x380 input and 50-class output.")
+            model.allocate_tensors()
+        else:
+            import tensorflow as tf
 
-def read_from_local_file():
-    if not os.path.exists(JSON_DB_FILE):
-        return []
-    try:
-        with open(JSON_DB_FILE, "r") as f:
-            return json.load(f)
-    except:
-        return []
-
-
-# --- 5. Load AI Model & Data ---
-# ⚠️ UPDATE THIS FILENAME IF NEEDED
-MODEL_FILENAME = os.path.join(BASE_DIR, "cattlenet_B4_phase1_epoch9.keras")
-
-print(f"🔄 Loading AI model ({MODEL_FILENAME})...")
-try:
-    if os.path.exists(MODEL_FILENAME):
-        model = tf.keras.models.load_model(MODEL_FILENAME)
-        print("✅ Model loaded successfully!")
-    else:
-        print(
-            f"❌ ERROR: Model file '{MODEL_FILENAME}' not found in current directory.")
+            tf.config.threading.set_intra_op_parallelism_threads(1)
+            tf.config.threading.set_inter_op_parallelism_threads(1)
+            model = tf.keras.models.load_model(MODEL_FILENAME, compile=False)
+            if model.input_shape != (None, 380, 380, 3) or model.output_shape != (None, 50):
+                raise ValueError("Expected the original 380x380 RGB, 50-class EfficientNetB4 model.")
+        logger.info("Loaded EfficientNetB4 for %s inference (50 classes).", INFERENCE_RUNTIME)
+    except Exception:
+        # A failed startup remains inspectable, but must never pass readiness.
         model = None
-except Exception as e:
-    print(f"❌ CRITICAL ERROR: Model failed to load. {e}")
-    model = None
+        logger.exception("Model initialization failed; predictions are unavailable.")
 
-# Load Class Indices
-try:
-    class_indices_path = os.path.join(BASE_DIR, "class_indices.json")
-    if os.path.exists(class_indices_path):
-        with open(class_indices_path, "r") as f:
-            class_indices = json.load(f)
-            # Ensure keys are integers for correct mapping
-            class_names = {int(k): v for k, v in class_indices.items()}
-        print(f"✅ Loaded {len(class_names)} breeds from class_indices.json")
-    else:
-        print("⚠️ class_indices.json not found!")
-        class_names = {}
-except Exception as e:
-    print("❌ Error loading class_indices.json:", e)
-    class_names = {}
 
-# Load Breed Info
-try:
-    breed_data_path = os.path.join(BASE_DIR, "breed_data.json")
-    if os.path.exists(breed_data_path):
-        with open(breed_data_path, encoding="utf-8") as f:
-            breed_data = json.load(f)
-        print("✅ Loaded breed info")
-    else:
-        print("⚠️ breed_data.json not found, using defaults.")
-        breed_data = {}
-except Exception:
-    breed_data = {}
+@asynccontextmanager
+async def lifespan(app):
+    initialize_database()
+    await run_in_threadpool(initialize_model)
+    yield
+    if client is not None:
+        client.close()
 
-# --- 6. Endpoints ---
+
+app = FastAPI(title="Gau-Raksha AI Backend (EfficientNetB4)", lifespan=lifespan)
+
+
+class UploadLimitMiddleware:
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http" or scope["path"] != "/predict":
+            await self.app(scope, receive, send)
+            return
+        length = dict(scope["headers"]).get(b"content-length")
+        if length and length.isdigit() and int(length) > MAX_REQUEST_BYTES:
+            await JSONResponse({"detail": "Upload exceeds the 8 MiB limit."}, status_code=413)(
+                scope, receive, send)
+            return
+        received = 0
+
+        async def limited_receive():
+            nonlocal received
+            message = await receive()
+            received += len(message.get("body", b""))
+            if received > MAX_REQUEST_BYTES:
+                raise HTTPException(413, "Upload exceeds the 8 MiB limit.")
+            return message
+
+        await self.app(scope, limited_receive, send)
+
+
+app.add_middleware(UploadLimitMiddleware)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=cors_origins(),
+    allow_credentials=False,
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type"],
+)
+
+
+def read_local_history():
+    if not JSON_DB_FILE.exists():
+        return []
+    with JSON_DB_FILE.open(encoding="utf-8") as handle:
+        records = json.load(handle)
+    if not isinstance(records, list):
+        raise ValueError("Local history is not a list.")
+    return records
+
+
+def save_local_history(record):
+    with history_lock:
+        records = [record, *read_local_history()][:100]
+        temporary = None
+        try:
+            with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=BASE_DIR,
+                                             prefix="history-", suffix=".tmp", delete=False) as handle:
+                temporary = Path(handle.name)
+                json.dump(records, handle, indent=4)
+            os.replace(temporary, JSON_DB_FILE)
+        finally:
+            if temporary is not None:
+                temporary.unlink(missing_ok=True)
+
+
+def save_history(record):
+    if mongo_connected:
+        try:
+            collection.insert_one(dict(record))
+            return
+        except PyMongoError as exc:
+            logger.error("MongoDB history write failed (%s).", type(exc).__name__)
+    if REQUIRE_MONGODB:
+        raise HTTPException(503, "Durable history is unavailable. Prediction was not saved.")
+    try:
+        save_local_history(record)
+    except (OSError, ValueError) as exc:
+        logger.error("Local history write failed (%s).", type(exc).__name__)
+        raise HTTPException(503, "History could not be saved.") from exc
 
 
 @app.get("/")
-def root():
-    return {
-        "status": "Running",
-        "mode": "Online" if mongo_connected else "Offline",
+@app.get("/health/ready")
+def readiness():
+    database_ready = mongo_connected
+    if mongo_connected:
+        try:
+            client.admin.command("ping")
+        except PyMongoError as exc:
+            database_ready = False
+            logger.error("MongoDB readiness check failed (%s).", type(exc).__name__)
+    ready = model is not None and (database_ready or not REQUIRE_MONGODB)
+    return JSONResponse({
+        "status": "Ready" if ready else "Unavailable",
+        "model_loaded": model is not None,
+        "inference_runtime": INFERENCE_RUNTIME,
+        "mode": "Online" if database_ready else "Offline",
+        "durable_history": database_ready,
         "breeds_supported": len(class_names),
-        "model_version": "EfficientNetB4 (85%+ Accuracy)"
-    }
+        "model_version": "EfficientNetB4 (85%+ Accuracy)",
+    }, status_code=200 if ready else 503)
 
 
 @app.get("/history")
@@ -168,86 +244,88 @@ def get_history():
     if mongo_connected:
         try:
             return list(collection.find({}, {"_id": 0}).sort("timestamp", -1).limit(50))
-        except:
-            return read_from_local_file()
-    return read_from_local_file()
+        except PyMongoError as exc:
+            logger.error("MongoDB history read failed (%s).", type(exc).__name__)
+    if REQUIRE_MONGODB:
+        raise HTTPException(503, "Durable history is unavailable.")
+    try:
+        with history_lock:
+            return read_local_history()
+    except (OSError, ValueError) as exc:
+        logger.error("Local history read failed (%s).", type(exc).__name__)
+        raise HTTPException(503, "History could not be read.") from exc
+
+
+def predict_image(image_bytes):
+    try:
+        with Image.open(io.BytesIO(image_bytes)) as source:
+            if source.width * source.height > MAX_IMAGE_PIXELS:
+                raise HTTPException(413, "Image exceeds the 16 megapixel limit.")
+            img = source.convert("RGB").resize((380, 380))
+        # EfficientNetB4 includes its own rescaling. Keep raw RGB values [0, 255].
+        img_array = np.expand_dims(np.asarray(img, dtype=np.float32), axis=0)
+    except Image.DecompressionBombError as exc:
+        raise HTTPException(413, "Image exceeds the 16 megapixel limit.") from exc
+    except (UnidentifiedImageError, OSError, ValueError) as exc:
+        raise HTTPException(400, "Upload a valid, readable image.") from exc
+
+    try:
+        if INFERENCE_RUNTIME == "litert":
+            model.set_tensor(model.get_input_details()[0]["index"], img_array)
+            model.invoke()
+            preds = model.get_tensor(model.get_output_details()[0]["index"])[0]
+        else:
+            preds = np.asarray(model.predict(img_array, verbose=0))[0]
+        if preds.shape != (50,) or not np.all(np.isfinite(preds)):
+            raise ValueError("Invalid model output.")
+    except Exception as exc:
+        logger.exception("Model inference failed.")
+        raise HTTPException(500, "Prediction failed. Check server logs.") from exc
+    idx = int(np.argmax(preds))
+    confidence = float(preds[idx] * 100)
+    breed = class_names[idx]
+    if confidence < 30.0:
+        return {
+            "breed": "Unknown",
+            "confidence": round(confidence, 2),
+            "message": "Low confidence match (Are you sure this is a cow?)",
+            "milk_yield": "N/A",
+            "fat_percentage": "N/A",
+            "market_value": "N/A",
+        }
+    info = breed_data.get(breed, {})
+    save_history({
+        "breed": breed,
+        "confidence": round(confidence, 2),
+        "milk_yield": info.get("milk_yield", "N/A"),
+        "fat_percentage": info.get("fat_percentage", "N/A"),
+        "market_value": info.get("market_value", "N/A"),
+        "timestamp": datetime.now().isoformat(),
+    })
+    return {"breed": breed, "confidence": round(confidence, 2), **info}
 
 
 @app.post("/predict")
 async def predict(file: UploadFile = File(...)):
-    if model is None:
-        return {"error": "Model not loaded. Check server logs."}
-
     try:
-        # 1. Read Image
-        image_bytes = await file.read()
-        img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+        if model is None:
+            raise HTTPException(503, "Model is unavailable. Check server logs.")
+        if REQUIRE_MONGODB and not mongo_connected:
+            raise HTTPException(503, "Durable history is unavailable.")
+        if not inference_slot.acquire(blocking=False):
+            raise HTTPException(503, "The model is busy. Please retry shortly.",
+                                headers={"Retry-After": "2"})
+        try:
+            image_bytes = await file.read(MAX_UPLOAD_BYTES + 1)
+            if len(image_bytes) > MAX_UPLOAD_BYTES:
+                raise HTTPException(413, "Upload exceeds the 8 MiB limit.")
+            return await run_in_threadpool(predict_image, image_bytes)
+        finally:
+            inference_slot.release()
+    finally:
+        await file.close()
 
-        # 2. Resize to 380x380 (Mandatory for EfficientNetB4)
-        img = img.resize((380, 380))
-
-        # 3. Preprocess Image (Correct B4 Method)
-        img_array = np.array(img)
-        # expand_dims to make it (1, 380, 380, 3)
-        img_array = np.expand_dims(img_array, axis=0)
-        # Apply EfficientNet preprocessing (scales/normalizes automatically)
-        img_array = preprocess_input(img_array)
-
-        # 4. Make Prediction
-        preds = model.predict(img_array)
-        preds_list = preds[0]
-
-        idx = int(np.argmax(preds_list))
-        confidence = float(preds_list[idx] * 100)
-        breed = class_names.get(idx, "Unknown")
-
-        # 5. Debug Logs
-        print(f"\n📸 Prediction: {breed} ({confidence:.2f}%)")
-
-        # 6. Threshold Logic
-        if confidence < 30.0:  # Slightly higher threshold for better model
-            return {
-                "breed": "Unknown",
-                "confidence": round(confidence, 2),
-                "message": "Low confidence match (Are you sure this is a cow?)",
-                "milk_yield": "N/A",
-                "fat_percentage": "N/A",
-                "market_value": "N/A"
-            }
-
-        # 7. Fetch Info & Save
-        info = breed_data.get(breed, {})
-
-        record = {
-            "breed": breed,
-            "confidence": round(confidence, 2),
-            "milk_yield": info.get("milk_yield", "N/A"),
-            "fat_percentage": info.get("fat_percentage", "N/A"),
-            "market_value": info.get("market_value", "N/A"),
-            "timestamp": datetime.now().isoformat()
-        }
-
-        # Save to DB
-        if mongo_connected:
-            try:
-                collection.insert_one(record)
-                print("✅ Saved to Cloud DB")
-            except:
-                save_to_local_file(record)
-        else:
-            save_to_local_file(record)
-
-        return {
-            "breed": breed,
-            "confidence": round(confidence, 2),
-            **info
-        }
-
-    except Exception as e:
-        print("❌ Prediction Error:", e)
-        return {"error": "Prediction failed", "details": str(e)}
 
 if __name__ == "__main__":
     import uvicorn
-    # Run the server
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", "8000")))

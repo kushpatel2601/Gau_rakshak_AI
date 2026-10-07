@@ -2,6 +2,7 @@
 venv/
 .venv/
 .venv312/
+.venv-lite/
 env/
 backend/venv/
 frontend/node_modules/
@@ -12,12 +13,16 @@ frontend/node_modules/
 *.exe
 *.keras
 *.h5
+*.tflite
 
 # --- Python & ML Artifacts ---
 **/__pycache__/
 *.py[cod]
 *$py.class
 .env
+.env.*
+!.env.example
+.vercel/
 backend/dataset/
 backend/R_dataset/
 backend/history.json
