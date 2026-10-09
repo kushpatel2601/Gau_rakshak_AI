@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { test } from "node:test";
-import { homeContent, featuredBreeds } from "./homeContent.js";
+import { homeContent, featuredBreeds, homeParts } from "./homeContent.js";
+import { breedGallery, SLIDE_INTERVAL_MS } from "./breedGallery.js";
 
 function shape(value) {
   if (Array.isArray(value)) return value.map(shape);
@@ -46,4 +47,26 @@ test("homepage explains model limits, public history and cold starts instead of 
   assert.match(answers, /shared, public prediction history/);
   assert.match(answers, /free API can sleep/);
   assert.doesNotMatch(JSON.stringify(homeContent.en), /50 indigenous|instant results|health markers|99%|85%/i);
+});
+
+test("hero slideshow covers all 50 local catalog images exactly once at two-second intervals", () => {
+  const app = readFileSync(new URL("./App.jsx", import.meta.url), "utf8");
+  const files = readdirSync(new URL("../public/breeds", import.meta.url)).sort();
+  assert.equal(SLIDE_INTERVAL_MS, 2000);
+  assert.equal(breedGallery.length, 50);
+  assert.equal(new Set(breedGallery.map(({ id }) => id)).size, 50);
+  assert.deepEqual(breedGallery.map(({ image }) => image.replace("/breeds/", "")).sort(), files);
+  for (const breed of breedGallery) {
+    assert.ok(app.includes(`"${breed.id}": {`), `${breed.id} has a catalog destination`);
+    for (const lang of ["en", "hi", "gu"]) assert.ok(breed.names[lang]);
+  }
+});
+
+test("four scroll parts have unique destinations and translated controls", () => {
+  assert.equal(homeParts.length, 4);
+  assert.equal(new Set(homeParts).size, 4);
+  for (const copy of Object.values(homeContent)) {
+    assert.equal(copy.sections.length, 4);
+    for (const key of ["sectionNavigation", "previousPhoto", "nextPhoto", "playSlideshow", "pauseSlideshow", "reducedSlideshow"]) assert.ok(copy[key]);
+  }
 });

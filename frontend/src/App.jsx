@@ -7,7 +7,7 @@ import { getHistory, predictCow } from "./api";
 import { 
   Upload, Camera, Activity, Database, ChevronRight,
   RefreshCw, AlertCircle, ArrowLeft, Droplet,
-  Thermometer, Banknote, Info, History, Globe, Leaf
+  Thermometer, Banknote, Info, History, Globe
 } from "lucide-react";
 import "leaflet/dist/leaflet.css";
 
@@ -1082,12 +1082,12 @@ function App() {
   // =========================
   return (
     <MotionConfig reducedMotion={reduceMotion ? "always" : "never"}>
-      <div className="app-shell relative min-h-screen bg-[#0E1117] text-white selection:bg-emerald-700/40">
+      <div className="app-shell relative min-h-screen bg-[#0E1117] text-white selection:bg-emerald-700/40" data-view={currentView}>
         <a className="skip-link" href="#main-content">{homeCopy.skip}</a>
         <header className="site-header">
           <nav className="site-nav" aria-label={homeCopy.navigation}>
             <button className="site-brand" onClick={navigateToHome} aria-label={`${t('app_title')} - ${t('nav_home')}`}>
-              <span className="site-brand-mark"><Leaf size={24} aria-hidden="true" /></span>
+              <span className="site-brand-mark" aria-hidden="true">🐄</span>
               <span>{t('app_title')}</span>
             </button>
             <div className="site-nav-links">

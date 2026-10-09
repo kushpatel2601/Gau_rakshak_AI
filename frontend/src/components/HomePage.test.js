@@ -3,7 +3,7 @@ import { after, before, test } from "node:test";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { createServer } from "vite";
-import { homeContent } from "../homeContent.js";
+import { homeContent, homeParts } from "../homeContent.js";
 
 let server;
 let HomePage;
@@ -35,5 +35,13 @@ for (const lang of ["en", "hi", "gu"]) {
     assert.match(html, /href="#how-it-works"/);
     assert.match(html, /loading="lazy"/);
     assert.match(html, /fetchPriority="high"/i);
+    assert.equal((html.match(/<section /g) || []).length, 4);
+    for (const id of homeParts) {
+      assert.ok(html.includes(`id="${id}"`));
+      assert.ok(html.includes(`href="#${id}"`));
+    }
+    assert.ok(html.includes(homeContent[lang].nextPhoto));
+    assert.ok(html.includes(homeContent[lang].previousPhoto));
+    assert.match(html, /data-playing="false"/);
   });
 }

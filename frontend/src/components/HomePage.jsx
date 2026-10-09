@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { motion, useScroll, useTransform } from "framer-motion";
+import { useScroll, useTransform } from "framer-motion";
 import {
   ArrowDown, ArrowRight, ArrowUpRight, BookOpen, Camera, Check,
   ChevronDown, FileDown, Focus, Globe, Leaf, MapPin, ScanLine, Sun,
 } from "lucide-react";
-import { featuredBreeds, homeContent } from "../homeContent";
+import { featuredBreeds, homeContent, homeParts } from "../homeContent";
+import HeroSlideshow from "./HeroSlideshow";
 import "../home.css";
 
 const stepIcons = [Camera, ScanLine, BookOpen];
@@ -43,6 +44,7 @@ function GlassCard({ children, className = "", interactiveMotion, ...props }) {
 export default function HomePage({ lang, onIdentify, onExplore, onBreed, reduceMotion = true }) {
   const copy = homeContent[lang];
   const [finePointer, setFinePointer] = useState(false);
+  const [activePart, setActivePart] = useState(homeParts[0]);
   const hero = useRef(null);
   const { scrollYProgress } = useScroll({ target: hero, offset: ["start start", "end start"] });
   const imageY = useTransform(scrollYProgress, [0, 1], [0, 42]);
@@ -58,9 +60,34 @@ export default function HomePage({ lang, onIdentify, onExplore, onBreed, reduceM
     return () => media.removeEventListener("change", update);
   }, []);
 
+  useEffect(() => {
+    const observer = new IntersectionObserver((entries) => {
+      const current = entries.find((entry) => entry.isIntersecting);
+      if (current) setActivePart(current.target.id);
+    }, { rootMargin: "-25% 0px -60% 0px" });
+    homeParts.forEach((id) => observer.observe(document.getElementById(id)));
+    return () => observer.disconnect();
+  }, []);
+
+  const scrollToPart = (event, id) => {
+    event.preventDefault();
+    const section = document.getElementById(id);
+    section.focus({ preventScroll: true });
+    section.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
+  };
+
   return (
     <div className="homepage" data-motion={interactiveMotion ? "full" : "reduced"}>
-      <section className="home-hero home-container" ref={hero} aria-labelledby="home-title">
+      <nav className="home-parts-nav" aria-label={copy.sectionNavigation}>
+        {homeParts.map((id, index) => (
+          <a key={id} href={`#${id}`} onClick={(event) => scrollToPart(event, id)} aria-current={activePart === id ? "step" : undefined}>
+            <span className="home-part-number" aria-hidden="true">0{index + 1}</span>
+            <span className="home-part-name">{copy.sections[index]}</span>
+          </a>
+        ))}
+      </nav>
+      <section id="home-intro" className="home-part" tabIndex={-1} aria-labelledby="home-title">
+      <div className="home-hero home-container" ref={hero}>
         <div className="hero-copy">
           <p className="home-eyebrow"><Leaf size={16} aria-hidden="true" />{copy.eyebrow}</p>
           <h1 id="home-title">{copy.title}<span>{copy.titleAccent}</span></h1>
@@ -74,39 +101,20 @@ export default function HomePage({ lang, onIdentify, onExplore, onBreed, reduceM
             </button>
           </div>
           <p className="hero-hint">{copy.uploadHint}</p>
-          <a className="hero-scroll" href="#how-it-works">
+          <a className="hero-scroll" href="#how-it-works" onClick={(event) => scrollToPart(event, "how-it-works")}>
             <span><ArrowDown size={17} aria-hidden="true" /></span>{copy.processEyebrow}
           </a>
         </div>
 
-        <div className="hero-visual">
-          <div className="hero-orbit" aria-hidden="true" />
-          <motion.div
-            className="hero-photo-frame"
-            style={interactiveMotion ? { y: imageY, rotateX: imageRotate } : { transform: "none" }}
-          >
-            <img className="hero-photo" src="/breeds/Nari.jpg" alt={copy.heroAlt} width="544" height="365" fetchpriority="high" />
-            <div className="hero-photo-shade" aria-hidden="true" />
-            <span className="hero-collection-label"><Leaf size={15} aria-hidden="true" />{copy.fieldNote}</span>
-            <div className="hero-photo-caption">
-              <span><MapPin size={15} aria-hidden="true" />{copy.heroRegion}</span>
-              <strong>{copy.heroBreed}</strong>
-              <p>{copy.heroTrait}</p>
-            </div>
-          </motion.div>
-          <motion.div className="hero-note-layer" style={interactiveMotion ? { y: noteY } : { transform: "none" }}>
-            <GlassCard className="hero-note" interactiveMotion={interactiveMotion}>
-              <span className="hero-note-icon"><ScanLine size={25} aria-hidden="true" /></span>
-              <div><span className="hero-note-label">{copy.photoLabel}</span>
-                <button className="home-text-link" onClick={() => onBreed("Nari")}>
-                  {copy.meetBreed}<ArrowUpRight size={18} aria-hidden="true" />
-                </button>
-              </div>
-            </GlassCard>
-          </motion.div>
-          <span className="hero-edition" aria-hidden="true">01 / 50</span>
-        </div>
-      </section>
+        <HeroSlideshow
+          copy={copy}
+          lang={lang}
+          reduceMotion={reduceMotion}
+          onBreed={onBreed}
+          imageStyle={interactiveMotion ? { y: imageY, rotateX: imageRotate } : { transform: "none" }}
+          noteStyle={interactiveMotion ? { y: noteY } : { transform: "none" }}
+        />
+      </div>
 
       <div className="home-container">
         <div className="home-facts">
@@ -115,8 +123,9 @@ export default function HomePage({ lang, onIdentify, onExplore, onBreed, reduceM
           <div><FileDown size={27} aria-hidden="true" /><span><strong>{copy.reportFormat}</strong>{copy.report}</span></div>
         </div>
       </div>
+      </section>
 
-      <section id="how-it-works" className="home-section home-container" aria-labelledby="process-title">
+      <section id="how-it-works" className="home-part home-part-process home-section home-container" tabIndex={-1} aria-labelledby="process-title">
         <div className="home-section-heading">
           <p className="home-eyebrow">{copy.processEyebrow}</p>
           <h2 id="process-title">{copy.processTitle}</h2>
@@ -135,7 +144,7 @@ export default function HomePage({ lang, onIdentify, onExplore, onBreed, reduceM
         </div>
       </section>
 
-      <section className="home-collection" aria-labelledby="collection-title">
+      <section id="breed-collection" className="home-part home-collection" tabIndex={-1} aria-labelledby="collection-title">
         <div className="home-container home-section">
           <div className="collection-heading">
             <div className="home-section-heading">
@@ -175,7 +184,8 @@ export default function HomePage({ lang, onIdentify, onExplore, onBreed, reduceM
         </div>
       </section>
 
-      <section className="home-section home-container home-guide" aria-labelledby="guide-title">
+      <section id="photo-guide" className="home-part" tabIndex={-1} aria-labelledby="guide-title">
+      <div className="home-section home-container home-guide">
         <div className="home-tips">
           <p className="home-eyebrow">{copy.guideEyebrow}</p>
           <h2 id="guide-title">{copy.guideTitle}</h2>
@@ -196,16 +206,17 @@ export default function HomePage({ lang, onIdentify, onExplore, onBreed, reduceM
             </details>
           ))}
         </div>
-      </section>
+      </div>
 
-      <div className="home-container">
-        <section className="home-closing" aria-labelledby="closing-title">
+      <div className="home-container home-closing-container">
+        <div className="home-closing">
           <div><p className="home-eyebrow"><Leaf size={16} aria-hidden="true" />{copy.closingEyebrow}</p><h2 id="closing-title">{copy.closingTitle}</h2></div>
           <button className="home-button home-button-primary" onClick={onIdentify}>
             <Camera size={20} aria-hidden="true" />{copy.identify}<ArrowRight size={19} aria-hidden="true" />
           </button>
-        </section>
+        </div>
       </div>
+      </section>
     </div>
   );
 }
