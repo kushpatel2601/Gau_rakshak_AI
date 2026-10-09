@@ -3,7 +3,7 @@ import { AnimatePresence, motion, useInView } from "framer-motion";
 import { ArrowUpRight, ChevronLeft, ChevronRight, Leaf, Pause, Play, ScanLine } from "lucide-react";
 import { breedGallery, SLIDE_INTERVAL_MS } from "../breedGallery";
 
-export default function HeroSlideshow({ copy, lang, reduceMotion, onBreed, imageStyle, noteStyle }) {
+export default function HeroSlideshow({ copy, lang, reduceMotion, onBreed, imageStyle, noteStyle, active = true }) {
   const container = useRef(null);
   const toggle = useRef(null);
   const inView = useInView(container, { amount: 0.25 });
@@ -13,7 +13,7 @@ export default function HeroSlideshow({ copy, lang, reduceMotion, onBreed, image
   const [pageVisible, setPageVisible] = useState(true);
   const [failedImage, setFailedImage] = useState(null);
   const current = breedGallery[index];
-  const playing = !reduceMotion && !paused && !hovered && pageVisible && inView && failedImage !== current.id;
+  const playing = active && !reduceMotion && !paused && !hovered && pageVisible && inView && failedImage !== current.id;
 
   useEffect(() => {
     const update = () => setPageVisible(!document.hidden);
@@ -31,10 +31,10 @@ export default function HeroSlideshow({ copy, lang, reduceMotion, onBreed, image
   }, [playing]);
 
   useEffect(() => {
-    if (!inView) return;
+    if (!active || !inView) return;
     const next = new Image();
     next.src = breedGallery[(index + 1) % breedGallery.length].image;
-  }, [index, inView]);
+  }, [index, active, inView]);
 
   const move = (direction) => {
     setPaused(true);

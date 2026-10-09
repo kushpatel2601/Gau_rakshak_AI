@@ -109,6 +109,8 @@
 .homepage {
   background: radial-gradient(ellipse at 85% 8%, #233526 0, transparent 25%), var(--home-bg);
   color: var(--home-ink);
+  padding-block: 24px 48px;
+  display: flow-root;
 }
 .homepage p { color: var(--home-muted); }
 .homepage :is(h1, h2, h3) { color: inherit; }
@@ -116,6 +118,28 @@
 .home-section { padding-block: 92px; }
 .home-part { scroll-margin-top: 105px; }
 .home-part:focus { outline: none; }
+.home-stack-anchor { height: 0; }
+.home-stack-card {
+  position: sticky;
+  top: 109px;
+  width: calc(100% - 48px);
+  max-width: 1328px;
+  margin: 0 auto 28px;
+  border: 1px solid #b5c8a340;
+  border-radius: 28px;
+  background: #10271f;
+  box-shadow: 0 -12px 45px #0003, 0 28px 60px #0005;
+  transform-origin: center top;
+}
+.home-stack-card.home-collection { background: #eeede3; }
+.home-stack-card :is(button, a, summary) { scroll-margin-block: 150px 100px; }
+.home-stack-card .home-hero { padding-block: 40px; }
+.home-stack-card .home-facts { border-bottom: 0; margin-bottom: 24px; }
+.home-stack-card.home-collection .home-section { padding-block: 40px; }
+.home-stack-card .home-diversity { margin-top: 24px; padding-top: 20px; }
+.home-stack-card .home-guide { padding-top: 48px; padding-bottom: 32px; }
+.home-stack-card .home-closing-container { padding-bottom: 32px; }
+.homepage[data-reduced-motion="true"] .home-stack-card { position: relative; top: auto !important; transform: none !important; }
 .home-parts-nav {
   position: fixed;
   z-index: 40;
@@ -309,11 +333,15 @@
 .home-glass:focus-within { border-color: #b1c493; box-shadow: 0 10px 32px #0002, inset 0 1px 0 #ffffff28; }
 
 @media (min-width: 1001px) {
-  .home-part { min-height: calc(100svh - 89px); }
+  .home-part { min-height: calc(100svh - 170px); }
   .home-part-process { display: flex; flex-direction: column; justify-content: center; }
   .home-collection { display: flex; align-items: center; }
   .home-collection > .home-container { width: 100%; }
   .homepage .home-container { padding-right: 76px; }
+  .home-stack-card .home-breed-photo { aspect-ratio: 1.9; }
+  .home-stack-card .home-breed-content { padding: 18px; }
+  .home-stack-card .home-breeds { margin-top: 24px; }
+  .home-stack-card.home-collection h2 { font-size: 34px; }
 }
 @media (max-width: 1000px) {
   .home-parts-nav { top: auto; right: 12px; left: 12px; bottom: max(10px, env(safe-area-inset-bottom)); transform: none; display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; padding: 6px; border-radius: 16px; }
@@ -374,6 +402,10 @@
 }
 @media (max-width: 600px) {
   .home-part { scroll-margin-top: 135px; }
+  .homepage { padding-top: 16px; }
+  .home-stack-card { width: calc(100% - 24px); border-radius: 20px; margin-bottom: 20px; }
+  .home-stack-card .home-hero { padding-top: 32px; padding-bottom: 24px; }
+  .home-stack-card .home-container, .home-stack-card.home-container { padding-inline: 18px; }
   .home-container, .site-nav, .site-footer-inner { padding-inline: 22px; }
   .site-nav { display: grid; grid-template-columns: 1fr auto; gap: 8px; padding-top: 12px; padding-bottom: 8px; }
   .site-brand { font-size: 17px; gap: 8px; }

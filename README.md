@@ -91,15 +91,19 @@ the existing language selector. Featured cards open the real breed profiles;
 identification, reports and shared history continue to use the existing API.
 The page explains confidence limits, breed-reference figures, shared/public
 history and free-service cold starts rather than promising a verified identity.
-Four numbered scroll parts group the overview, how-it-works steps, breed
-collection and photo guide/FAQ. Section links scroll without hijacking the mouse
-wheel; the sections expand naturally on small screens.
+Four overlapping scroll cards group the overview, how-it-works steps, breed
+collection and photo guide/FAQ. Each incoming card slides over the previous
+card, which subtly scales back and tilts in 3D. Numbered links navigate the
+stack without hijacking the mouse wheel. Tall cards finish scrolling their
+content before pinning, so small screens and expanded FAQs remain readable.
+Keyboard focus brings covered cards back into view.
+Reduced motion switches the stack to ordinary, non-overlapping cards.
 
 The cow-branded header accompanies a hero slideshow of all 50 catalog photos,
 advancing every two seconds. The current photo always opens its own breed
 profile. Pause and previous/next controls are translated and keyboard-accessible.
-Rotation pauses while hovered, after keyboard interaction, when offscreen or
-when the tab is hidden. Reduced motion disables automatic rotation and slide
+Rotation pauses while hovered, after keyboard interaction, when offscreen,
+covered by the next card, or when the tab is hidden. Reduced motion disables automatic rotation and slide
 transitions; manual arrows still work. Only the next image is preloaded.
 
 `frontend/src/components/HomePage.jsx`, `frontend/src/homeContent.js` and

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useScroll, useTransform } from "framer-motion";
+import { motion, useMotionValueEvent, useScroll, useTransform } from "framer-motion";
 import {
   ArrowDown, ArrowRight, ArrowUpRight, BookOpen, Camera, Check,
   ChevronDown, FileDown, Focus, Globe, Leaf, MapPin, ScanLine, Sun,
@@ -41,12 +41,40 @@ function GlassCard({ children, className = "", interactiveMotion, ...props }) {
   );
 }
 
+function StackCard({ id, index, layout, scrollY, reduceMotion, children, className = "", ...props }) {
+  const progress = useTransform(scrollY, [layout?.start ?? 0, layout?.end ?? 1], [0, 1]);
+  const scale = useTransform(progress, [0, 1], [1, 0.94]);
+  const rotateX = useTransform(progress, [0, 1], [0, -4]);
+  const y = useTransform(progress, [0, 1], [0, -6]);
+  const recedes = !reduceMotion && layout && index < homeParts.length - 1;
+
+  return (
+    <>
+      <div id={`${id}-anchor`} className="home-stack-anchor" aria-hidden="true" />
+      <motion.section
+        {...props}
+        id={id}
+        tabIndex={-1}
+        className={`home-part home-stack-card ${className}`}
+        style={{
+          top: layout?.top,
+          zIndex: index + 1,
+          ...(recedes ? { scale, rotateX, y, transformPerspective: 1400 } : { transform: "none" }),
+        }}
+      >
+        {children}
+      </motion.section>
+    </>
+  );
+}
+
 export default function HomePage({ lang, onIdentify, onExplore, onBreed, reduceMotion = true }) {
   const copy = homeContent[lang];
   const [finePointer, setFinePointer] = useState(false);
   const [activePart, setActivePart] = useState(homeParts[0]);
+  const [stackLayout, setStackLayout] = useState([]);
   const hero = useRef(null);
-  const { scrollYProgress } = useScroll({ target: hero, offset: ["start start", "end start"] });
+  const { scrollY, scrollYProgress } = useScroll({ target: hero, offset: ["start start", "end start"] });
   const imageY = useTransform(scrollYProgress, [0, 1], [0, 42]);
   const imageRotate = useTransform(scrollYProgress, [0, 1], [0, 4]);
   const noteY = useTransform(scrollYProgress, [0, 1], [0, -24]);
@@ -61,23 +89,66 @@ export default function HomePage({ lang, onIdentify, onExplore, onBreed, reduceM
   }, []);
 
   useEffect(() => {
-    const observer = new IntersectionObserver((entries) => {
-      const current = entries.find((entry) => entry.isIntersecting);
-      if (current) setActivePart(current.target.id);
-    }, { rootMargin: "-25% 0px -60% 0px" });
-    homeParts.forEach((id) => observer.observe(document.getElementById(id)));
-    return () => observer.disconnect();
-  }, []);
+    const cards = homeParts.map((id) => document.getElementById(id));
+    const anchors = homeParts.map((id) => document.getElementById(`${id}-anchor`));
+    const header = document.querySelector(".site-header");
+    let frame;
+    const measure = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const headerHeight = header.getBoundingClientRect().height;
+        const positions = anchors.map((anchor) => anchor.getBoundingClientRect().top + window.scrollY);
+        // Tall cards scroll completely into view before their bottom edge pins.
+        const tops = cards.map((card, index) =>
+          Math.min(headerHeight + 20 + index * 10, window.innerHeight - card.offsetHeight - 24));
+        const next = cards.map((card, index) => ({
+          top: tops[index],
+          anchor: positions[index],
+          navigationTop: Math.max(0, positions[index] - headerHeight - 20),
+          activeAt: positions[index] - headerHeight - (window.innerHeight - headerHeight) * 0.35,
+          start: (positions[index + 1] ?? positions[index]) - window.innerHeight + 48,
+          end: (positions[index + 1] ?? positions[index]) - (tops[index + 1] ?? tops[index]),
+        }));
+        setStackLayout((previous) => JSON.stringify(previous) === JSON.stringify(next) ? previous : next);
+      });
+    };
+    const observer = new ResizeObserver(measure);
+    [...cards, header].forEach((element) => observer.observe(element));
+    window.addEventListener("resize", measure);
+    measure();
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", measure);
+      cancelAnimationFrame(frame);
+    };
+  }, [lang, reduceMotion]);
+
+  useMotionValueEvent(scrollY, "change", (value) => {
+    const active = stackLayout.reduce((current, layout, index) => value >= layout.activeAt ? index : current, 0);
+    setActivePart(homeParts[active]);
+  });
 
   const scrollToPart = (event, id) => {
     event.preventDefault();
     const section = document.getElementById(id);
     section.focus({ preventScroll: true });
-    section.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
+    const layout = stackLayout[homeParts.indexOf(id)];
+    window.scrollTo({
+      top: layout?.navigationTop ?? document.getElementById(`${id}-anchor`).getBoundingClientRect().top + window.scrollY,
+      behavior: reduceMotion ? "auto" : "smooth",
+    });
+    setActivePart(id);
+  };
+
+  const revealFocusedCard = (event, id) => {
+    if (event.target === event.currentTarget || activePart === id) return;
+    const layout = stackLayout[homeParts.indexOf(id)];
+    if (layout) window.scrollTo({ top: layout.navigationTop, behavior: "auto" });
+    setActivePart(id);
   };
 
   return (
-    <div className="homepage" data-motion={interactiveMotion ? "full" : "reduced"}>
+    <div className="homepage" data-motion={interactiveMotion ? "full" : "reduced"} data-reduced-motion={reduceMotion}>
       <nav className="home-parts-nav" aria-label={copy.sectionNavigation}>
         {homeParts.map((id, index) => (
           <a key={id} href={`#${id}`} onClick={(event) => scrollToPart(event, id)} aria-current={activePart === id ? "step" : undefined}>
@@ -86,7 +157,7 @@ export default function HomePage({ lang, onIdentify, onExplore, onBreed, reduceM
           </a>
         ))}
       </nav>
-      <section id="home-intro" className="home-part" tabIndex={-1} aria-labelledby="home-title">
+      <StackCard id="home-intro" index={0} layout={stackLayout[0]} scrollY={scrollY} reduceMotion={reduceMotion} aria-labelledby="home-title" onFocusCapture={(event) => revealFocusedCard(event, "home-intro")}>
       <div className="home-hero home-container" ref={hero}>
         <div className="hero-copy">
           <p className="home-eyebrow"><Leaf size={16} aria-hidden="true" />{copy.eyebrow}</p>
@@ -107,6 +178,7 @@ export default function HomePage({ lang, onIdentify, onExplore, onBreed, reduceM
         </div>
 
         <HeroSlideshow
+          active={activePart === homeParts[0]}
           copy={copy}
           lang={lang}
           reduceMotion={reduceMotion}
@@ -123,9 +195,9 @@ export default function HomePage({ lang, onIdentify, onExplore, onBreed, reduceM
           <div><FileDown size={27} aria-hidden="true" /><span><strong>{copy.reportFormat}</strong>{copy.report}</span></div>
         </div>
       </div>
-      </section>
+      </StackCard>
 
-      <section id="how-it-works" className="home-part home-part-process home-section home-container" tabIndex={-1} aria-labelledby="process-title">
+      <StackCard id="how-it-works" index={1} layout={stackLayout[1]} scrollY={scrollY} reduceMotion={reduceMotion} className="home-part-process home-section home-container" aria-labelledby="process-title" onFocusCapture={(event) => revealFocusedCard(event, "how-it-works")}>
         <div className="home-section-heading">
           <p className="home-eyebrow">{copy.processEyebrow}</p>
           <h2 id="process-title">{copy.processTitle}</h2>
@@ -142,9 +214,9 @@ export default function HomePage({ lang, onIdentify, onExplore, onBreed, reduceM
             );
           })}
         </div>
-      </section>
+      </StackCard>
 
-      <section id="breed-collection" className="home-part home-collection" tabIndex={-1} aria-labelledby="collection-title">
+      <StackCard id="breed-collection" index={2} layout={stackLayout[2]} scrollY={scrollY} reduceMotion={reduceMotion} className="home-collection" aria-labelledby="collection-title" onFocusCapture={(event) => revealFocusedCard(event, "breed-collection")}>
         <div className="home-container home-section">
           <div className="collection-heading">
             <div className="home-section-heading">
@@ -182,9 +254,9 @@ export default function HomePage({ lang, onIdentify, onExplore, onBreed, reduceM
             </a>
           </div>
         </div>
-      </section>
+      </StackCard>
 
-      <section id="photo-guide" className="home-part" tabIndex={-1} aria-labelledby="guide-title">
+      <StackCard id="photo-guide" index={3} layout={stackLayout[3]} scrollY={scrollY} reduceMotion={reduceMotion} aria-labelledby="guide-title" onFocusCapture={(event) => revealFocusedCard(event, "photo-guide")}>
       <div className="home-section home-container home-guide">
         <div className="home-tips">
           <p className="home-eyebrow">{copy.guideEyebrow}</p>
@@ -216,7 +288,7 @@ export default function HomePage({ lang, onIdentify, onExplore, onBreed, reduceM
           </button>
         </div>
       </div>
-      </section>
+      </StackCard>
     </div>
   );
 }

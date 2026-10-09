@@ -36,8 +36,12 @@ for (const lang of ["en", "hi", "gu"]) {
     assert.match(html, /loading="lazy"/);
     assert.match(html, /fetchPriority="high"/i);
     assert.equal((html.match(/<section /g) || []).length, 4);
+    assert.equal((html.match(/home-part home-stack-card/g) || []).length, 4);
+    assert.equal((html.match(/class="home-stack-anchor"/g) || []).length, 4);
+    assert.match(html, /data-reduced-motion="true"/);
     for (const id of homeParts) {
       assert.ok(html.includes(`id="${id}"`));
+      assert.ok(html.includes(`id="${id}-anchor"`));
       assert.ok(html.includes(`href="#${id}"`));
     }
     assert.ok(html.includes(homeContent[lang].nextPhoto));
