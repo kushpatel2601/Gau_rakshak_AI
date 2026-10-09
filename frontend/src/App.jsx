@@ -1,19 +1,20 @@
 import React, { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, MotionConfig } from "framer-motion";
 import PDFReport from "./components/PDFReport";
+import HomePage from "./components/HomePage";
+import { homeContent } from "./homeContent";
 import { getHistory, predictCow } from "./api"; 
 import { 
-  Upload, Camera, Activity, Database, Shield, ChevronRight, 
-  RefreshCw, AlertCircle, CheckCircle, ArrowLeft, Droplet, 
-  Thermometer, Banknote, Info, History, Calendar, Clock, Globe, Home,
-  Sparkles
+  Upload, Camera, Activity, Database, ChevronRight,
+  RefreshCw, AlertCircle, ArrowLeft, Droplet,
+  Thermometer, Banknote, Info, History, Globe, Leaf
 } from "lucide-react";
 import "leaflet/dist/leaflet.css";
 
 // ==========================================
 // ANIMATION VARIANTS
 // ==========================================
-const page = {
+const pageVariants = {
   hidden: { opacity: 0, y: 20 },
   show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: "easeOut" } },
   exit: { opacity: 0, y: -20, transition: { duration: 0.3 } }
@@ -29,22 +30,6 @@ const TRANSLATIONS = {
     nav_home: "Home",
     nav_breeds: "Breeds",
     
-    // Home View
-    hero_title_1: "Preserving Indigenous Cow Breed Through",
-    hero_title_2: "Vision AI",
-    hero_subtitle: "Gau-Raksha AI helps identify and protect India’s indigenous cattle breeds using advanced AI-based image analysis.",
-    feature_instant: "Instant Results",
-    feature_db: "Identifies 50 Indian Breeds",
-    btn_identify_cow: "Identify Cow Breed",
-    
-    // Footer Features
-    feat_db_title: "Comprehensive Database",
-    feat_db_desc: "Trained on a specialized dataset including rare breeds like Krishna Valley, Amritmahal, and Gir.",
-    feat_health_title: "Health & Yield Metrics",
-    feat_health_desc: "Our predictive models estimate milk yield, fat percentage, and potential health markers instantly.",
-    feat_privacy_title: "Data Privacy",
-    feat_privacy_desc: "Your data is processed securely. We are dedicated to the preservation of indigenous cattle genetics.",
-
     // Identify View
     back_home: "Back to Home",
     view_history: "View History",
@@ -52,6 +37,7 @@ const TRANSLATIONS = {
     id_subtitle: "Upload a clear image of the cow (side profile preferred)",
     click_upload: "Click to upload",
     drag_drop: "or drag and drop",
+    upload_limits: "Images up to 8 MiB / 16 megapixels",
     analyzing: "Analyzing Features...",
     btn_identify_now: "Identify Breed Now",
     match: "Match",
@@ -81,7 +67,7 @@ const TRANSLATIONS = {
     
     // Detail View
     back_breeds: "Back to Breeds",
-    profile_tag: "Indigenous Breed Profile",
+    profile_tag: "Cattle Breed Profile",
     desc_title: "Description"
   },
   hi: {
@@ -90,22 +76,6 @@ const TRANSLATIONS = {
     nav_home: "मुख्य पृष्ठ",
     nav_breeds: "नस्लें",
     
-    // Home View
-    hero_title_1: "देसी गाय की नस्लों का संरक्षण",
-    hero_title_2: "विज़न एआई द्वारा",
-    hero_subtitle: "गौ-रक्षा एआई उन्नत एआई-आधारित छवि विश्लेषण का उपयोग करके भारत की देसी मवेशी नस्लों की पहचान और सुरक्षा में मदद करता है।",
-    feature_instant: "तत्काल परिणाम",
-    feature_db: "50 भारतीय नस्लों की पहचान",
-    btn_identify_cow: "गाय की नस्ल पहचानें",
-    
-    // Footer Features
-    feat_db_title: "व्यापक डेटाबेस",
-    feat_db_desc: "कृष्णा वैली, अमृतमहल और गिर जैसी दुर्लभ नस्लों सहित विशेष डेटासेट पर प्रशिक्षित।",
-    feat_health_title: "स्वास्थ्य और उत्पादन मेट्रिक्स",
-    feat_health_desc: "हमारे मॉडल दूध की उपज, वसा प्रतिशत और संभावित स्वास्थ्य संकेतकों का तत्काल अनुमान लगाते हैं।",
-    feat_privacy_title: "डेटा गोपनीयता",
-    feat_privacy_desc: "आपका डेटा सुरक्षित रूप से संसाधित किया जाता है। हम देसी मवेशी आनुवंशिकी के संरक्षण के लिए समर्पित हैं।",
-
     // Identify View
     back_home: "वापस मुख्य पृष्ठ",
     view_history: "इतिहास देखें",
@@ -113,6 +83,7 @@ const TRANSLATIONS = {
     id_subtitle: "गाय की स्पष्ट तस्वीर अपलोड करें (साइड प्रोफाइल बेहतर है)",
     click_upload: "अपलोड करने के लिए क्लिक करें",
     drag_drop: "या ड्रैग और ड्रॉप करें",
+    upload_limits: "8 MiB / 16 मेगापिक्सेल तक की तस्वीरें",
     analyzing: "विशेषताओं का विश्लेषण...",
     btn_identify_now: "अभी पहचानें",
     match: "मिलान",
@@ -142,7 +113,7 @@ const TRANSLATIONS = {
     
     // Detail View
     back_breeds: "वापस नस्लों पर",
-    profile_tag: "देसी नस्ल प्रोफाइल",
+    profile_tag: "मवेशी नस्ल प्रोफाइल",
     desc_title: "विवरण"
   },
   gu: {
@@ -151,22 +122,6 @@ const TRANSLATIONS = {
     nav_home: "મુખ્ય પૃષ્ઠ",
     nav_breeds: "ઓલાદો",
     
-    // Home View
-    hero_title_1: "દેશી ગાયની ઓલાદોનું સંરક્ષણ",
-    hero_title_2: "વિઝન AI દ્વારા",
-    hero_subtitle: "ગૌ-રક્ષા AI આધુનિક ઇમેજ એનાલિસિસનો ઉપયોગ કરીને ભારતની દેશી પશુ ઓલાદોની ઓળખ અને રક્ષણમાં મદદ કરે છે.",
-    feature_instant: "ઝડપી પરિણામો",
-    feature_db: "50 ભારતીય ઓલાદોની ઓળખ",
-    btn_identify_cow: "ઓલાદ ઓળખો",
-    
-    // Footer Features
-    feat_db_title: "વિશાળ ડેટાબેઝ",
-    feat_db_desc: "કૃષ્ણા વેલી, અમૃતમહાલ અને ગીર જેવી દુર્લભ ઓલાદો સહિતના ખાસ ડેટાસેટ પર પ્રશિક્ષિત.",
-    feat_health_title: "આરોગ્ય અને ઉત્પાદન",
-    feat_health_desc: "અમારા મોડેલ દૂધ ઉત્પાદન, ચરબીની ટકાવારી અને સંભવિત આરોગ્ય સંકેતોનો અંદાજ લગાવે છે.",
-    feat_privacy_title: "ડેટા ગોપનીયતા",
-    feat_privacy_desc: "તમારો ડેટા સુરક્ષિત છે. અમે દેશી પશુ જિનેટિક્સના સંરક્ષણ માટે સમર્પિત છીએ.",
-
     // Identify View
     back_home: "હોમ પેજ",
     view_history: "ઇતિહાસ જુઓ",
@@ -174,6 +129,7 @@ const TRANSLATIONS = {
     id_subtitle: "ગાયનો સ્પષ્ટ ફોટો અપલોડ કરો (બાજુનો દેખાવ શ્રેષ્ઠ છે)",
     click_upload: "અપલોડ કરવા ક્લિક કરો",
     drag_drop: "અથવા ડ્રેગ અને ડ્રોપ કરો",
+    upload_limits: "8 MiB / 16 મેગાપિક્સેલ સુધીના ફોટા",
     analyzing: "વિશ્લેષણ ચાલુ છે...",
     btn_identify_now: "હવે ઓળખો",
     match: "મેચ",
@@ -203,7 +159,7 @@ const TRANSLATIONS = {
     
     // Detail View
     back_breeds: "પાછા ઓલાદો પર",
-    profile_tag: "દેશી ઓલાદ પ્રોફાઇલ",
+    profile_tag: "પશુ ઓલાદ પ્રોફાઇલ",
     desc_title: "વર્ણન"
   }
 };
@@ -579,6 +535,24 @@ function App() {
   const [error, setError] = useState(null);
   const [history, setHistory] = useState([]); 
   const [historyError, setHistoryError] = useState(null);
+  const [reduceMotion, setReduceMotion] = useState(true);
+  const page = reduceMotion
+    ? { hidden: { opacity: 1 }, show: { opacity: 1 }, exit: { opacity: 1, transition: { duration: 0 } } }
+    : pageVariants;
+  const homeCopy = homeContent[lang];
+
+  useEffect(() => {
+    document.documentElement.lang = lang;
+  }, [lang]);
+
+  useEffect(() => {
+    // This Framer Motion version snapshots the preference; keep live changes reactive.
+    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const update = () => setReduceMotion(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
 
   // --- Translation Helper ---
   const t = (key) => TRANSLATIONS[lang][key] || key;
@@ -586,8 +560,7 @@ function App() {
   // =========================
   // Handlers
   // =========================
-  const handleImageUpload = (e) => {
-    const file = e.target.files[0];
+  const handleImageFile = (file) => {
     if (!file) return;
 
     setImage(file);
@@ -595,6 +568,8 @@ function App() {
     setResult(null); 
     setError(null);
   };
+
+  const handleImageUpload = (e) => handleImageFile(e.target.files[0]);
 
   const analyzeBreed = async () => {
     if (!image) return;
@@ -670,83 +645,6 @@ function App() {
   // UI Components (Views)
   // =========================
 
-  // --- 1. The Home Page View ---
-  const HomeView = () => (
-    <motion.div variants={page} initial="hidden" animate="show" exit="exit">
-      <div id="home" className="relative pt-24 pb-32 px-6 flex flex-col items-center justify-center text-center">
-        {/* Animated Background Element */}
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-[600px] bg-gradient-to-b from-red-900/20 to-transparent pointer-events-none animate-pulse duration-[3000ms]" />
-
-        <div className="relative z-10 max-w-5xl mx-auto space-y-8">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-red-900/30 border border-red-500/30 text-red-300 text-sm font-semibold mb-4 backdrop-blur-sm animate-bounce">
-            <Sparkles size={16} /> Empowering Indian Dairy Farmers
-          </div>
-
-          <h1 className="text-5xl md:text-7xl font-extrabold leading-tight tracking-tight drop-shadow-2xl">
-            {t('hero_title_1')} <br/>
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-red-400 via-orange-500 to-yellow-500 animate-gradient-x">
-              {t('hero_title_2')}
-            </span>
-          </h1>
-          <p className="text-xl text-gray-300 max-w-2xl mx-auto leading-relaxed">
-            {t('hero_subtitle')}
-          </p>
-          
-          <div className="flex flex-wrap gap-6 justify-center pt-2">
-             <div className="flex items-center gap-2 text-gray-300 bg-gray-800/50 px-4 py-2 rounded-full border border-gray-700/50 backdrop-blur-md hover:bg-gray-800 transition duration-300 cursor-default">
-                <CheckCircle size={20} className="text-green-500"/> {t('feature_instant')}
-             </div>
-             <div className="flex items-center gap-2 text-gray-300 bg-gray-800/50 px-4 py-2 rounded-full border border-gray-700/50 backdrop-blur-md hover:bg-gray-800 transition duration-300 cursor-default">
-                <CheckCircle size={20} className="text-green-500"/> {t('feature_db')}
-             </div>
-          </div>
-
-          <div className="pt-8">
-            <button 
-              onClick={navigateToIdentify}
-              className="group relative inline-flex items-center justify-center px-10 py-5 text-lg font-bold text-white transition-all duration-300 bg-gradient-to-r from-red-600 to-red-500 rounded-full hover:from-red-500 hover:to-red-400 hover:scale-110 active:scale-95 shadow-lg shadow-red-600/30 ring-4 ring-transparent hover:ring-red-500/20"
-            >
-              <Camera className="w-6 h-6 mr-2 group-hover:rotate-12 transition-transform duration-300" />
-              {t('btn_identify_cow')}
-              <ChevronRight className="w-5 h-5 ml-1 group-hover:translate-x-2 transition-transform duration-300" />
-            </button>
-          </div>
-        </div>
-      </div>
-      
-      {/* Footer / Features Section */}
-      <section className="py-20 bg-[#0E1117] border-t border-[#262730]">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="grid md:grid-cols-3 gap-8">
-            <div className="group p-8 bg-[#1E1F25]/60 backdrop-blur-md rounded-2xl border border-[#262730] hover:border-red-500/50 hover:bg-[#1E1F25] transition-all duration-500 hover:-translate-y-2 hover:shadow-2xl hover:shadow-red-900/20">
-              <div className="w-16 h-16 bg-red-900/20 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-500 border border-red-500/20 group-hover:border-red-500/50">
-                <Database className="w-8 h-8 text-red-500" />
-              </div>
-              <h3 className="text-xl font-bold mb-3 text-gray-100 group-hover:text-red-400 transition-colors">{t('feat_db_title')}</h3>
-              <p className="text-gray-400 leading-relaxed group-hover:text-gray-300 transition-colors">{t('feat_db_desc')}</p>
-            </div>
-
-            <div className="group p-8 bg-[#1E1F25]/60 backdrop-blur-md rounded-2xl border border-[#262730] hover:border-blue-500/50 hover:bg-[#1E1F25] transition-all duration-500 hover:-translate-y-2 hover:shadow-2xl hover:shadow-blue-900/20">
-              <div className="w-16 h-16 bg-blue-900/20 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-500 border border-blue-500/20 group-hover:border-blue-500/50">
-                <Activity className="w-8 h-8 text-blue-500" />
-              </div>
-              <h3 className="text-xl font-bold mb-3 text-gray-100 group-hover:text-blue-400 transition-colors">{t('feat_health_title')}</h3>
-              <p className="text-gray-400 leading-relaxed group-hover:text-gray-300 transition-colors">{t('feat_health_desc')}</p>
-            </div>
-
-            <div className="group p-8 bg-[#1E1F25]/60 backdrop-blur-md rounded-2xl border border-[#262730] hover:border-green-500/50 hover:bg-[#1E1F25] transition-all duration-500 hover:-translate-y-2 hover:shadow-2xl hover:shadow-green-900/20">
-              <div className="w-16 h-16 bg-green-900/20 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-500 border border-green-500/20 group-hover:border-green-500/50">
-                <Shield className="w-8 h-8 text-green-500" />
-              </div>
-              <h3 className="text-xl font-bold mb-3 text-gray-100 group-hover:text-green-400 transition-colors">{t('feat_privacy_title')}</h3>
-              <p className="text-gray-400 leading-relaxed group-hover:text-gray-300 transition-colors">{t('feat_privacy_desc')}</p>
-            </div>
-          </div>
-        </div>
-      </section>
-    </motion.div>
-  );
-
   // --- 2. The Identify Page View ---
   const IdentifyView = () => (
     <motion.div variants={page} initial="hidden" animate="show" exit="exit">
@@ -778,16 +676,23 @@ function App() {
               </div>
 
               {!preview ? (
-                <label className="flex flex-col items-center justify-center w-full h-96 border-2 border-[#262730] border-dashed rounded-2xl cursor-pointer bg-[#0E1117] hover:bg-[#16181d] hover:border-red-500/50 transition-all duration-500 group relative overflow-hidden">
+                <label
+                  className="flex flex-col items-center justify-center w-full h-96 border-2 border-[#262730] border-dashed rounded-2xl cursor-pointer bg-[#0E1117] hover:bg-[#16181d] hover:border-red-500/50 focus-within:border-amber-300 focus-within:ring-2 focus-within:ring-amber-300 transition-all duration-500 group relative overflow-hidden"
+                  onDragOver={(event) => event.preventDefault()}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    handleImageFile(event.dataTransfer.files[0]);
+                  }}
+                >
                   <div className="absolute inset-0 bg-red-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                   <div className="flex flex-col items-center justify-center pt-5 pb-6 relative z-10">
                     <div className="p-6 bg-[#1E1F25] rounded-full mb-4 group-hover:scale-110 group-hover:rotate-12 transition-all duration-500 shadow-xl border border-gray-700 group-hover:border-red-500/50">
                       <Upload className="w-12 h-12 text-gray-400 group-hover:text-red-500 transition-colors duration-300" />
                     </div>
                     <p className="mb-2 text-xl text-gray-400 group-hover:text-gray-200 transition-colors"><span className="font-bold text-white">{t('click_upload')}</span> {t('drag_drop')}</p>
-                    <p className="text-sm text-gray-500 group-hover:text-gray-400">JPG, PNG (MAX. 5MB)</p>
+                    <p className="text-sm text-gray-400">{t('upload_limits')}</p>
                   </div>
-                  <input type="file" className="hidden" accept="image/*" onChange={handleImageUpload} />
+                  <input type="file" className="sr-only" aria-label={t('click_upload')} accept="image/*" onChange={handleImageUpload} />
                 </label>
               ) : (
                 <div className="relative w-full h-96 bg-black/50 rounded-2xl overflow-hidden group border border-[#262730] shadow-inner">
@@ -819,7 +724,7 @@ function App() {
               </button>
 
               {error && (
-                <div className="p-4 bg-red-900/20 border border-red-900/50 rounded-xl flex items-center gap-3 text-red-200 animate-pulse">
+                <div role="alert" className="p-4 bg-red-900/20 border border-red-900/50 rounded-xl flex items-center gap-3 text-red-200">
                   <AlertCircle size={20} /> {error}
                 </div>
               )}
@@ -1176,89 +1081,53 @@ function App() {
   // Main Render (Navbar & View Controller)
   // =========================
   return (
-    <div className="relative min-h-screen bg-[#0E1117] text-white overflow-hidden selection:bg-red-500/30 selection:text-red-200">
+    <MotionConfig reducedMotion={reduceMotion ? "always" : "never"}>
+      <div className="app-shell relative min-h-screen bg-[#0E1117] text-white selection:bg-emerald-700/40">
+        <a className="skip-link" href="#main-content">{homeCopy.skip}</a>
+        <header className="site-header">
+          <nav className="site-nav" aria-label={homeCopy.navigation}>
+            <button className="site-brand" onClick={navigateToHome} aria-label={`${t('app_title')} - ${t('nav_home')}`}>
+              <span className="site-brand-mark"><Leaf size={24} aria-hidden="true" /></span>
+              <span>{t('app_title')}</span>
+            </button>
+            <div className="site-nav-links">
+              <button onClick={navigateToHome} aria-current={currentView === "home" ? "page" : undefined}>{t('nav_home')}</button>
+              <button onClick={navigateToBreeds} aria-current={["breeds", "breed_detail"].includes(currentView) ? "page" : undefined}>{t('nav_breeds')}</button>
+              <button onClick={navigateToIdentify} aria-current={["identify", "history"].includes(currentView) ? "page" : undefined}>{homeCopy.identify}</button>
+            </div>
+            <label className="site-language">
+              <Globe size={17} aria-hidden="true" />
+              <span className="sr-only">{homeCopy.language}</span>
+              <select value={lang} onChange={(e) => setLang(e.target.value)}>
+                <option value="en" lang="en">English</option>
+                <option value="hi" lang="hi">हिन्दी</option>
+                <option value="gu" lang="gu">ગુજરાતી</option>
+              </select>
+            </label>
+          </nav>
+        </header>
 
-      {/* 🌈 PREMIUM GRADIENT MESH BACKGROUND */}
-      <div className="absolute inset-0 -z-10">
-        <div className="absolute -top-40 -left-40 w-[500px] h-[500px] bg-red-500/25 blur-[140px] rounded-full" />
-        <div className="absolute top-20 right-[-200px] w-[600px] h-[600px] bg-orange-500/20 blur-[160px] rounded-full" />
-        <div className="absolute bottom-[-200px] left-1/3 w-[500px] h-[500px] bg-pink-500/20 blur-[160px] rounded-full" />
+        <main id="main-content" className="app-main" tabIndex={-1}>
+          <AnimatePresence mode="wait" onExitComplete={() => {
+            document.getElementById("main-content")?.focus({ preventScroll: true });
+            window.scrollTo(0, 0);
+          }}>
+            {currentView === "home" && <HomePage key="home" lang={lang} reduceMotion={reduceMotion} onIdentify={navigateToIdentify} onExplore={navigateToBreeds} onBreed={navigateToBreedDetail} />}
+            {currentView === "identify" && <IdentifyView key="identify" />}
+            {currentView === "history" && <HistoryView key="history" />}
+            {currentView === "breeds" && <BreedsView key="breeds" />}
+            {currentView === "breed_detail" && <BreedDetailView key="detail" />}
+          </AnimatePresence>
+        </main>
+
+        <footer className="site-footer">
+          <div className="site-footer-inner">
+            <div><span className="site-footer-brand">{t('app_title')}</span><p>{homeCopy.footer}</p></div>
+            <p className="site-footer-note">{homeCopy.footerNote}</p>
+          </div>
+        </footer>
       </div>
-
-      {/* --- Navbar --- */}
-      <nav className="sticky top-0 z-50 bg-[#0E1117]/80 backdrop-blur-xl border-b border-[#262730] px-6 py-4 flex justify-between items-center transition-all duration-300 shadow-lg shadow-black/20">
-        
-        {/* LOGO */}
-        <div className="flex items-center gap-3 cursor-pointer group" onClick={navigateToHome}>
-          <span className="text-3xl bg-gray-800 rounded-full p-1 border border-gray-700 group-hover:scale-110 transition-transform duration-300 shadow-lg shadow-red-900/20">🐄</span>
-          <h1 className="text-xl font-bold tracking-wide group-hover:text-red-400 transition-colors">
-            {t('app_title')}
-          </h1>
-        </div>
-
-        {/* RIGHT SIDE CONTROLS */}
-        <div className="flex items-center gap-4">
-            
-            {/* NAV LINKS (Desktop) - Styled like Lang Button */}
-            <div className="hidden md:flex gap-3">
-                <button 
-                    onClick={navigateToHome} 
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl border transition-all duration-300 ${
-                        currentView === 'home' 
-                        ? 'bg-red-600 border-red-500 text-white shadow-lg shadow-red-900/20' 
-                        : 'bg-gray-800/50 border-gray-700 text-gray-300 hover:border-gray-500 hover:text-white hover:bg-gray-700'
-                    }`}
-                >
-                    <Home size={16} className={currentView === 'home' ? "text-white" : "text-red-500"} />
-                    <span className="text-sm font-bold">{t('nav_home')}</span>
-                </button>
-
-                <button 
-                    onClick={navigateToBreeds} 
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl border transition-all duration-300 ${
-                        currentView === 'breeds' || currentView === 'breed_detail' 
-                        ? 'bg-red-600 border-red-500 text-white shadow-lg shadow-red-900/20' 
-                        : 'bg-gray-800/50 border-gray-700 text-gray-300 hover:border-gray-500 hover:text-white hover:bg-gray-700'
-                    }`}
-                >
-                    <Database size={16} className={currentView === 'breeds' ? "text-white" : "text-red-500"} />
-                    <span className="text-sm font-bold">{t('nav_breeds')}</span>
-                </button>
-            </div>
-
-            {/* LANGUAGE TOGGLE */}
-            <div className="flex items-center gap-2 bg-gray-800/80 hover:bg-gray-700 px-4 py-2 rounded-xl border border-gray-700 hover:border-gray-500 transition-all duration-300 group cursor-pointer shadow-lg">
-                 <Globe size={16} className="text-red-500 group-hover:rotate-180 transition-transform duration-500" />
-                 <select 
-                   value={lang} 
-                   onChange={(e) => setLang(e.target.value)}
-                   className="bg-transparent border-none outline-none text-sm font-bold text-gray-300 cursor-pointer focus:ring-0 uppercase"
-                 >
-                   <option value="en">ENG</option>
-                   <option value="hi">HIN</option>
-                   <option value="gu">GUJ</option>
-                 </select>
-            </div>
-        </div>
-      </nav>
-
-      {/* --- View Switcher --- */}
-      <AnimatePresence mode="wait">
-        {currentView === "home" && <HomeView key="home" />}
-        {currentView === "identify" && <IdentifyView key="identify" />}
-        {currentView === "history" && <HistoryView key="history" />}
-        {currentView === "breeds" && <BreedsView key="breeds" />}
-        {currentView === "breed_detail" && <BreedDetailView key="detail" />}
-      </AnimatePresence>
-
-      {/* --- Footer --- */}
-      <footer className="bg-[#0E1117] border-t border-[#262730] py-10 text-center text-gray-500 text-sm hover:text-gray-400 transition-colors">
-        <p className="flex items-center justify-center gap-2">
-            © 2024 {t('app_title')}. <span className="hidden md:inline">Empowering Dairy Farmers.</span>
-        </p>
-      </footer>
-
-    </div>
+    </MotionConfig>
   );
 }
 

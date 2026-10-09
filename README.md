@@ -82,6 +82,37 @@ npm ci
 npm run dev
 ```
 
+### Homepage
+
+The image-led homepage uses existing local breed photographs, a forest/cream
+palette, glass hover surfaces and restrained scroll-linked hero depth. Homepage
+copy and shared navigation are available in English, Hindi and Gujarati through
+the existing language selector. Featured cards open the real breed profiles;
+identification, reports and shared history continue to use the existing API.
+The page explains confidence limits, breed-reference figures, shared/public
+history and free-service cold starts rather than promising a verified identity.
+
+`frontend/src/components/HomePage.jsx`, `frontend/src/homeContent.js` and
+`frontend/src/home.css` contain the homepage implementation. Pointer tilt is
+limited to fine mouse pointers. Reduced-motion preferences disable depth,
+transitions and animation without hiding content. Navigation and FAQs are
+keyboard-accessible, and mobile navigation remains visible.
+
+Run the frontend checks and a production preview from `frontend`:
+
+```powershell
+npm test
+$env:VITE_API_URL = "https://gau-raksha-api.onrender.com"
+npm run build
+npm run preview -- --host 127.0.0.1 --port 4173 --strictPort
+```
+
+The live API only accepts its configured frontend origins. A localhost preview
+can display the homepage and catalog, but uploads/history may be rejected by
+CORS. Use request fixtures for local UI regression checks; do not weaken
+production CORS just to preview a homepage. No backend or hosting configuration
+change is required by this redesign.
+
 Without MongoDB credentials, local development uses `backend/history.json`.
 This is **not durable hosted storage**. Production must set `REQUIRE_MONGODB=true`:
 a database outage then returns HTTP 503 instead of silently losing history on
