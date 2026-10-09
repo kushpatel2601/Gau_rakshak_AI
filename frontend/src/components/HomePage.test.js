@@ -20,12 +20,13 @@ before(async () => {
 after(async () => { await server?.close(); });
 
 for (const lang of ["en", "hi", "gu"]) {
-  test(`homepage renders usable, motion-safe content in ${lang} before hydration`, () => {
+  test(`homepage renders four motion-safe cards without floating navigation in ${lang}`, () => {
     const html = renderToStaticMarkup(React.createElement(HomePage, {
       lang, onIdentify() {}, onExplore() {}, onBreed() {},
     }));
     assert.match(html, /data-motion="reduced"/);
     assert.doesNotMatch(html, /opacity:0|visibility:hidden/);
+    assert.doesNotMatch(html, /home-parts-nav|home-part-number|home-part-name|<nav\b/);
     assert.equal((html.match(/<h1 /g) || []).length, 1);
     assert.equal((html.match(/<details /g) || []).length, 4);
     assert.equal((html.match(/class="home-breed-button"/g) || []).length, 3);
@@ -42,7 +43,6 @@ for (const lang of ["en", "hi", "gu"]) {
     for (const id of homeParts) {
       assert.ok(html.includes(`id="${id}"`));
       assert.ok(html.includes(`id="${id}-anchor"`));
-      assert.ok(html.includes(`href="#${id}"`));
     }
     assert.ok(html.includes(homeContent[lang].nextPhoto));
     assert.ok(html.includes(homeContent[lang].previousPhoto));

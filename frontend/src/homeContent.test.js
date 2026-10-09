@@ -62,11 +62,10 @@ test("hero slideshow covers all 50 local catalog images exactly once at two-seco
   }
 });
 
-test("four scroll parts have unique destinations and translated controls", () => {
+test("four scroll cards have stable IDs and translated gallery controls", () => {
   assert.equal(homeParts.length, 4);
   assert.equal(new Set(homeParts).size, 4);
   for (const copy of Object.values(homeContent)) {
-    assert.equal(copy.sections.length, 4);
-    for (const key of ["sectionNavigation", "previousPhoto", "nextPhoto", "playSlideshow", "pauseSlideshow", "reducedSlideshow"]) assert.ok(copy[key]);
+    for (const key of ["previousPhoto", "nextPhoto", "playSlideshow", "pauseSlideshow", "reducedSlideshow"]) assert.ok(copy[key]);
   }
 });

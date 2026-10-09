@@ -149,14 +149,6 @@ export default function HomePage({ lang, onIdentify, onExplore, onBreed, reduceM
 
   return (
     <div className="homepage" data-motion={interactiveMotion ? "full" : "reduced"} data-reduced-motion={reduceMotion}>
-      <nav className="home-parts-nav" aria-label={copy.sectionNavigation}>
-        {homeParts.map((id, index) => (
-          <a key={id} href={`#${id}`} onClick={(event) => scrollToPart(event, id)} aria-current={activePart === id ? "step" : undefined}>
-            <span className="home-part-number" aria-hidden="true">0{index + 1}</span>
-            <span className="home-part-name">{copy.sections[index]}</span>
-          </a>
-        ))}
-      </nav>
       <StackCard id="home-intro" index={0} layout={stackLayout[0]} scrollY={scrollY} reduceMotion={reduceMotion} aria-labelledby="home-title" onFocusCapture={(event) => revealFocusedCard(event, "home-intro")}>
       <div className="home-hero home-container" ref={hero}>
         <div className="hero-copy">

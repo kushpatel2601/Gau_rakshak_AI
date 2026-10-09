@@ -93,8 +93,8 @@ The page explains confidence limits, breed-reference figures, shared/public
 history and free-service cold starts rather than promising a verified identity.
 Four overlapping scroll cards group the overview, how-it-works steps, breed
 collection and photo guide/FAQ. Each incoming card slides over the previous
-card, which subtly scales back and tilts in 3D. Numbered links navigate the
-stack without hijacking the mouse wheel. Tall cards finish scrolling their
+card, which subtly scales back and tilts in 3D. The stack uses natural scrolling
+without a floating side rail or bottom navigation bar. Tall cards finish scrolling their
 content before pinning, so small screens and expanded FAQs remain readable.
 Keyboard focus brings covered cards back into view.
 Reduced motion switches the stack to ordinary, non-overlapping cards.
@@ -109,8 +109,8 @@ transitions; manual arrows still work. Only the next image is preloaded.
 `frontend/src/components/HomePage.jsx`, `frontend/src/homeContent.js` and
 `frontend/src/home.css` contain the homepage implementation. Pointer tilt is
 limited to fine mouse pointers. Reduced-motion preferences disable depth,
-transitions and animation without hiding content. Navigation and FAQs are
-keyboard-accessible, and mobile navigation remains visible.
+transitions and animation without hiding content. The shared header navigation
+and FAQs remain keyboard-accessible.
 
 Run the frontend checks and a production preview from `frontend`:
 
